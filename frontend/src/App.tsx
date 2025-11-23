@@ -1997,8 +1997,9 @@ function App() {
         const finalP2Balance = player2BalanceDisplay || newBalances.p2
         const shouldAnimate = payoutStep >= 4 && isPayoutConfirmed
         
-        // Only show balance for the winning player
-        const winningPlayer = winner
+        // Only show balance for the consensus winning player (not for no_consensus)
+        const consensus = calculateConsensus()
+        const winningPlayer = consensus && consensus.type !== 'no_consensus' ? consensus.winner : null
         
         return (
           <div className="payout-modal-overlay">
