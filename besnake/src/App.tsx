@@ -115,50 +115,101 @@ function MoveSelector({ currentMove, onSelect, onClose }: MoveSelectorProps) {
   )
 }
 
+const MAX_MOVE_SLOTS = 200
+
 function MoveVisualization({ 
   moves, 
   player, 
   gameOver, 
   modifiedMoves,
-  onMoveClick 
+  onMoveClick,
+  currentTick
 }: { 
   moves: MoveLog[], 
   player: 1 | 2, 
   gameOver: boolean,
   modifiedMoves: Set<string>,
-  onMoveClick: (tick: number, player: 1 | 2) => void
+  onMoveClick: (tick: number, player: 1 | 2) => void,
+  currentTick: number
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   
-  // Auto-scroll to bottom when new moves are added (only during active game)
+  // Create a map of moves by tick for quick lookup
+  const movesByTick = new Map<number, MoveLog>()
+  moves.forEach(move => {
+    movesByTick.set(move[0], move)
+  })
+  
+  const MOVES_PER_ROW = 5
+  const numRows = Math.ceil(MAX_MOVE_SLOTS / MOVES_PER_ROW)
+  
+  // Scroll to keep current tick visible (center the row containing current tick)
   useEffect(() => {
-    if (!gameOver && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    if (scrollContainerRef.current && !gameOver) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          const rowIndex = Math.floor(currentTick / MOVES_PER_ROW)
+          const currentRow = rowRefs.current.get(rowIndex)
+          if (currentRow) {
+            const container = scrollContainerRef.current
+            const rowOffset = currentRow.offsetTop
+            const rowHeight = currentRow.offsetHeight
+            const containerHeight = container.clientHeight
+            
+            // Center the current tick row in the viewport
+            const targetScroll = rowOffset - (containerHeight / 2) + (rowHeight / 2)
+            container.scrollTop = targetScroll
+          }
+        }
+      }, 0)
     }
-  }, [moves, gameOver])
+  }, [currentTick, gameOver, moves])
   
   return (
     <div className="move-visualization">
-      <h3>Player {player} Moves</h3>
+      <div className="move-visualization-title">Moves</div>
       <div className="move-grid-scrollable" ref={scrollContainerRef}>
         <div className="move-grid">
-          {moves.map(([tick, p1Move, p2Move], idx) => {
-            const move = player === 1 ? p1Move : p2Move
-            const isActive = move !== null
-            const moveKey = `${tick}-${player}`
-            const isModified = modifiedMoves.has(moveKey)
-            
+          <div className="tick-column-header">Tick</div>
+          {Array.from({ length: MOVES_PER_ROW }, (_, colIdx) => (
+            <div key={`header-${colIdx}`} className="move-grid-spacer"></div>
+          ))}
+          {Array.from({ length: numRows }, (_, rowIdx) => {
+            const startTick = rowIdx * MOVES_PER_ROW
             return (
-              <div key={idx} className="move-tick">
-                <div className="tick-label">Tick {tick}</div>
+              <>
                 <div 
-                  className={`move-box ${isActive ? `move-${move?.toLowerCase()}` : 'move-empty'} ${isModified ? 'move-modified' : ''}`}
-                  onClick={() => onMoveClick(tick, player)}
-                  style={{ cursor: 'pointer' }}
+                  key={`tick-${rowIdx}`} 
+                  className="tick-number"
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(rowIdx, el)
+                  }}
                 >
-                  {move || ''}
+                  {startTick}
                 </div>
-              </div>
+                {Array.from({ length: MOVES_PER_ROW }, (_, colIdx) => {
+                  const tick = startTick + colIdx
+                  if (tick >= MAX_MOVE_SLOTS) return null
+                  const moveEntry = movesByTick.get(tick)
+                  const move = moveEntry ? (player === 1 ? moveEntry[1] : moveEntry[2]) : null
+                  const isActive = move !== null
+                  const moveKey = `${tick}-${player}`
+                  const isModified = modifiedMoves.has(moveKey)
+                  
+                  return (
+                    <div 
+                      key={`box-${tick}`}
+                      className={`move-box ${isActive ? `move-${move?.toLowerCase()}` : 'move-empty'} ${isModified ? 'move-modified' : ''}`}
+                      onClick={() => onMoveClick(tick, player)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {move || ''}
+                    </div>
+                  )
+                })}
+              </>
             )
           })}
         </div>
@@ -194,6 +245,7 @@ function App() {
   const [originalMoveLog, setOriginalMoveLog] = useState<MoveLog[]>([])
   const [modifiedMoves, setModifiedMoves] = useState<Set<string>>(new Set())
   const [editingMove, setEditingMove] = useState<{ tick: number, player: 1 | 2 } | null>(null)
+  const [gameStarted, setGameStarted] = useState(false)
 
   // Use refs to access current state in callbacks
   const snake1Ref = useRef(snake1)
@@ -396,6 +448,11 @@ function App() {
     const dir2 = direction2Ref.current
     const currentTick = tickRef.current
 
+    // Skip if neither player has moved (game hasn't started)
+    if (dir1.x === 0 && dir1.y === 0 && dir2.x === 0 && dir2.y === 0) {
+      return
+    }
+
     // Log moves for this tick
     const p1Move = directionToLetter(dir1)
     const p2Move = directionToLetter(dir2)
@@ -449,47 +506,81 @@ function App() {
   }, [applyMove])
 
   useEffect(() => {
-    if (gameOver) return
+    if (gameOver || !gameStarted) return
 
     const gameInterval = setInterval(moveSnakes, GAME_SPEED)
     return () => clearInterval(gameInterval)
-  }, [moveSnakes, gameOver])
+  }, [moveSnakes, gameOver, gameStarted])
 
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
     if (gameOver) return
 
+    let moved = false
+
     // Player 1 controls (WASD)
     switch (e.key.toLowerCase()) {
       case 'w':
-        if (direction1.y === 0) setDirection1({ x: 0, y: -1 })
-        return
+        if (direction1.y === 0) {
+          setDirection1({ x: 0, y: -1 })
+          moved = true
+        }
+        break
       case 's':
-        if (direction1.y === 0) setDirection1({ x: 0, y: 1 })
-        return
+        if (direction1.y === 0) {
+          setDirection1({ x: 0, y: 1 })
+          moved = true
+        }
+        break
       case 'a':
-        if (direction1.x === 0) setDirection1({ x: -1, y: 0 })
-        return
+        if (direction1.x === 0) {
+          setDirection1({ x: -1, y: 0 })
+          moved = true
+        }
+        break
       case 'd':
-        if (direction1.x === 0) setDirection1({ x: 1, y: 0 })
-        return
+        if (direction1.x === 0) {
+          setDirection1({ x: 1, y: 0 })
+          moved = true
+        }
+        break
     }
 
     // Player 2 controls (Arrow keys)
-    switch (e.key) {
-      case 'ArrowUp':
-        if (direction2.y === 0) setDirection2({ x: 0, y: -1 })
-        break
-      case 'ArrowDown':
-        if (direction2.y === 0) setDirection2({ x: 0, y: 1 })
-        break
-      case 'ArrowLeft':
-        if (direction2.x === 0) setDirection2({ x: -1, y: 0 })
-        break
-      case 'ArrowRight':
-        if (direction2.x === 0) setDirection2({ x: 1, y: 0 })
-        break
+    if (!moved) {
+      switch (e.key) {
+        case 'ArrowUp':
+          if (direction2.y === 0) {
+            setDirection2({ x: 0, y: -1 })
+            moved = true
+          }
+          break
+        case 'ArrowDown':
+          if (direction2.y === 0) {
+            setDirection2({ x: 0, y: 1 })
+            moved = true
+          }
+          break
+        case 'ArrowLeft':
+          if (direction2.x === 0) {
+            setDirection2({ x: -1, y: 0 })
+            moved = true
+          }
+          break
+        case 'ArrowRight':
+          if (direction2.x === 0) {
+            setDirection2({ x: 1, y: 0 })
+            moved = true
+          }
+          break
+      }
     }
-  }, [direction1, direction2, gameOver])
+
+    // Start the game and increment tick when first move is made
+    if (moved && !gameStarted) {
+      setGameStarted(true)
+      setTick(0) // Start at tick 0
+    }
+  }, [direction1, direction2, gameOver, gameStarted])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyPress)
@@ -511,6 +602,7 @@ function App() {
     setOriginalMoveLog([])
     setModifiedMoves(new Set())
     setEditingMove(null)
+    setGameStarted(false)
   }
 
   const handleMoveClick = useCallback((tick: number, player: 1 | 2) => {
@@ -572,17 +664,13 @@ function App() {
           onClose={() => setEditingMove(null)}
         />
       )}
-      <div className="game-header">
-        <h1>Two Player Snake</h1>
-        <div className="scores">
-          <div className="score player1">Player 1 (WASD): {score1}</div>
-          <div className="score player2">Player 2 (Arrows): {score2}</div>
-        </div>
-      </div>
 
       <div className="game-layout">
         {/* Left: Player 1 Moves */}
         <div className="move-panel">
+          <div className="move-panel-header">
+            <div className="score player1">Player 1 Length: {score1}</div>
+          </div>
           <div className="game-hash-container">
             <div className="game-hash-label">Game Hash = {gameHash}</div>
             <MoveVisualization 
@@ -591,51 +679,50 @@ function App() {
               gameOver={gameOver}
               modifiedMoves={modifiedMoves}
               onMoveClick={handleMoveClick}
+              currentTick={tick}
             />
           </div>
         </div>
 
         {/* Center: Game Board */}
         <div className="game-center">
-          <div className="game-board">
-            {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
-              const x = index % GRID_SIZE
-              const y = Math.floor(index / GRID_SIZE)
-              const isSnake1 = snake1.some(segment => segment.x === x && segment.y === y)
-              const isSnake2 = snake2.some(segment => segment.x === x && segment.y === y)
-              const isHead1 = snake1[0]?.x === x && snake1[0]?.y === y
-              const isHead2 = snake2[0]?.x === x && snake2[0]?.y === y
-              const isFood = food.x === x && food.y === y
+          <div className={`game-board-wrapper ${gameOver ? 'game-over-blur' : ''}`}>
+            <div className="game-board">
+              {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
+                const x = index % GRID_SIZE
+                const y = Math.floor(index / GRID_SIZE)
+                const isSnake1 = snake1.some(segment => segment.x === x && segment.y === y)
+                const isSnake2 = snake2.some(segment => segment.x === x && segment.y === y)
+                const isHead1 = snake1[0]?.x === x && snake1[0]?.y === y
+                const isHead2 = snake2[0]?.x === x && snake2[0]?.y === y
+                const isFood = food.x === x && food.y === y
 
-              return (
+                return (
                 <div
                   key={index}
                   className={`cell ${isHead1 ? 'head1' : ''} ${isHead2 ? 'head2' : ''} ${isSnake1 ? 'snake1' : ''} ${isSnake2 ? 'snake2' : ''} ${isFood ? 'food' : ''}`}
                   style={{
                     width: CELL_SIZE,
-                    height: CELL_SIZE
+                    height: CELL_SIZE,
+                    transition: 'all 0.15s ease'
                   }}
                 />
-              )
-            })}
-          </div>
-
-          {gameOver && (
-            <div className="game-over">
-              {winner === null ? (
-                <>
-                  <h2>It's a Tie!</h2>
-                  <p>Both players crashed</p>
-                </>
-              ) : (
-                <>
-                  <h2>Player {winner} Wins!</h2>
-                  <p>Last snake standing</p>
-                </>
-              )}
-              <button onClick={resetGame}>Play Again</button>
+                )
+              })}
             </div>
-          )}
+            {gameOver && (
+              <div className="game-over-overlay-board">
+                <div className="game-over-content">
+                  {winner === null ? (
+                    <h2>It's a Tie!</h2>
+                  ) : (
+                    <h2>Player {winner} Wins!</h2>
+                  )}
+                  <button onClick={resetGame}>Play Again</button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="instructions">
             <p><strong>Player 1:</strong> WASD keys | <strong>Player 2:</strong> Arrow keys</p>
@@ -645,6 +732,9 @@ function App() {
 
         {/* Right: Player 2 Moves */}
         <div className="move-panel">
+          <div className="move-panel-header">
+            <div className="score player2">Player 2 Length: {score2}</div>
+          </div>
           <div className="game-hash-container">
             <div className="game-hash-label">Game Hash = {gameHash}</div>
             <MoveVisualization 
@@ -653,6 +743,7 @@ function App() {
               gameOver={gameOver}
               modifiedMoves={modifiedMoves}
               onMoveClick={handleMoveClick}
+              currentTick={tick}
             />
           </div>
         </div>
