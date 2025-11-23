@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 
 const GRID_SIZE = 20
-const CELL_SIZE = 20
+const CELL_SIZE = 30
 const INITIAL_SNAKE_1 = [{ x: 5, y: 10 }]
 const INITIAL_SNAKE_2 = [{ x: 15, y: 10 }]
 const INITIAL_DIRECTION_1 = { x: 0, y: 0 }
@@ -42,6 +42,90 @@ const hashMoves = (moves: MoveLog[]): string => {
     hash = hash & hash // Convert to 32bit integer
   }
   return Math.abs(hash).toString(16).padStart(8, '0')
+}
+
+type GooglyEyesProps = {
+  direction: Position
+  player: 1 | 2
+}
+
+function GooglyEyes({ direction, player }: GooglyEyesProps) {
+  const [eyeOffset1, setEyeOffset1] = useState({ x: 0, y: 0 })
+  const [eyeOffset2, setEyeOffset2] = useState({ x: 0, y: 0 })
+  
+  useEffect(() => {
+    // Animate eyes looking around independently
+    const interval1 = setInterval(() => {
+      const angle = Math.random() * Math.PI * 2
+      const distance = 1.5 + Math.random() * 1.5
+      setEyeOffset1({
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance
+      })
+    }, 800 + Math.random() * 1200)
+    
+    const interval2 = setInterval(() => {
+      const angle = Math.random() * Math.PI * 2
+      const distance = 1.5 + Math.random() * 1.5
+      setEyeOffset2({
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance
+      })
+    }, 800 + Math.random() * 1200)
+    
+    return () => {
+      clearInterval(interval1)
+      clearInterval(interval2)
+    }
+  }, [])
+  
+  // Base eye position based on direction - eyes at top front of head
+  const getEyePosition = (isLeft: boolean, eyeOffset: { x: number; y: number }) => {
+    // Default positions (when moving right) - more spaced apart
+    let baseX = isLeft ? 28 : 72
+    let baseY = 25
+    
+    // Adjust based on direction
+    if (direction.x > 0) { // Right
+      baseX = isLeft ? 28 : 72
+      baseY = 25
+    } else if (direction.x < 0) { // Left
+      baseX = isLeft ? 72 : 28
+      baseY = 25
+    } else if (direction.y > 0) { // Down
+      baseX = isLeft ? 28 : 72
+      baseY = 30
+    } else if (direction.y < 0) { // Up
+      baseX = isLeft ? 28 : 72
+      baseY = 20
+    }
+    
+    return {
+      left: `${baseX + eyeOffset.x}%`,
+      top: `${baseY + eyeOffset.y}%`
+    }
+  }
+  
+  return (
+    <div className="googly-eyes-container">
+      <div 
+        className="googly-eye"
+        style={{
+          ...getEyePosition(true, eyeOffset1)
+        } as React.CSSProperties}
+      >
+        <div className="googly-pupil" />
+      </div>
+      <div 
+        className="googly-eye"
+        style={{
+          ...getEyePosition(false, eyeOffset2)
+        } as React.CSSProperties}
+      >
+        <div className="googly-pupil" />
+      </div>
+    </div>
+  )
 }
 
 type MoveSelectorProps = {
@@ -668,8 +752,9 @@ function App() {
       <div className="game-layout">
         {/* Left: Player 1 Moves */}
         <div className="move-panel">
-          <div className="move-panel-header">
-            <div className="score player1">Player 1 Length: {score1}</div>
+          <div className="game-board-header">
+            <div className="board-header-left">Player 1</div>
+            <div className="board-header-right">Length: {score1}</div>
           </div>
           <div className="game-hash-container">
             <div className="game-hash-label">Game Hash = {gameHash}</div>
@@ -693,20 +778,66 @@ function App() {
                 const y = Math.floor(index / GRID_SIZE)
                 const isSnake1 = snake1.some(segment => segment.x === x && segment.y === y)
                 const isSnake2 = snake2.some(segment => segment.x === x && segment.y === y)
-                const isHead1 = snake1[0]?.x === x && snake1[0]?.y === y
-                const isHead2 = snake2[0]?.x === x && snake2[0]?.y === y
+                const head1Index = snake1.findIndex(segment => segment.x === x && segment.y === y)
+                const head2Index = snake2.findIndex(segment => segment.x === x && segment.y === y)
+                const isHead1 = head1Index === 0
+                const isHead2 = head2Index === 0
+                const isTail1 = head1Index === snake1.length - 1 && snake1.length > 1
+                const isTail2 = head2Index === snake2.length - 1 && snake2.length > 1
                 const isFood = food.x === x && food.y === y
+                
+                // Get direction for head/tail styling
+                // For head: use movement direction (curve the front)
+                // For tail: use direction from body to tail (curve the back)
+                const head1Dir = isHead1 ? direction1 : null
+                const head2Dir = isHead2 ? direction2 : null
+                const tail1Dir = isTail1 && snake1.length > 1
+                  ? { x: snake1[snake1.length - 1].x - snake1[snake1.length - 2].x, y: snake1[snake1.length - 1].y - snake1[snake1.length - 2].y }
+                  : null
+                const tail2Dir = isTail2 && snake2.length > 1
+                  ? { x: snake2[snake2.length - 1].x - snake2[snake2.length - 2].x, y: snake2[snake2.length - 1].y - snake2[snake2.length - 2].y }
+                  : null
+
+                // Helper to get border radius based on direction
+                const getHeadBorderRadius = (dir: Position | null) => {
+                  if (!dir || (dir.x === 0 && dir.y === 0)) return undefined
+                  if (dir.x > 0) return '0 50% 50% 0' // Moving right - curve right
+                  if (dir.x < 0) return '50% 0 0 50%' // Moving left - curve left
+                  if (dir.y > 0) return '0 0 50% 50%' // Moving down - curve bottom
+                  if (dir.y < 0) return '50% 50% 0 0' // Moving up - curve top
+                  return undefined
+                }
+
+                const getTailBorderRadius = (dir: Position | null) => {
+                  if (!dir || (dir.x === 0 && dir.y === 0)) return undefined
+                  // Curve the end of the tail (the side pointing away from body), keep connection square
+                  if (dir.x > 0) return '0 50% 50% 0' // Tail pointing right - curve right (end)
+                  if (dir.x < 0) return '50% 0 0 50%' // Tail pointing left - curve left (end)
+                  if (dir.y > 0) return '0 0 50% 50%' // Tail pointing down - curve bottom (end)
+                  if (dir.y < 0) return '50% 50% 0 0' // Tail pointing up - curve top (end)
+                  return undefined
+                }
 
                 return (
                 <div
                   key={index}
-                  className={`cell ${isHead1 ? 'head1' : ''} ${isHead2 ? 'head2' : ''} ${isSnake1 ? 'snake1' : ''} ${isSnake2 ? 'snake2' : ''} ${isFood ? 'food' : ''}`}
+                  className={`cell ${isHead1 ? 'head1' : ''} ${isHead2 ? 'head2' : ''} ${isSnake1 ? 'snake1' : ''} ${isSnake2 ? 'snake2' : ''} ${isTail1 ? 'tail1' : ''} ${isTail2 ? 'tail2' : ''} ${isFood ? 'food' : ''}`}
                   style={{
                     width: CELL_SIZE,
                     height: CELL_SIZE,
-                    transition: 'all 0.15s ease'
+                    ...(isHead1 && head1Dir ? { borderRadius: getHeadBorderRadius(head1Dir) } : {}),
+                    ...(isHead2 && head2Dir ? { borderRadius: getHeadBorderRadius(head2Dir) } : {}),
+                    ...(isTail1 && tail1Dir ? { borderRadius: getTailBorderRadius(tail1Dir) } : {}),
+                    ...(isTail2 && tail2Dir ? { borderRadius: getTailBorderRadius(tail2Dir) } : {})
                   }}
-                />
+                >
+                  {isHead1 && (
+                    <GooglyEyes direction={direction1} player={1} />
+                  )}
+                  {isHead2 && (
+                    <GooglyEyes direction={direction2} player={2} />
+                  )}
+                </div>
                 )
               })}
             </div>
@@ -732,8 +863,9 @@ function App() {
 
         {/* Right: Player 2 Moves */}
         <div className="move-panel">
-          <div className="move-panel-header">
-            <div className="score player2">Player 2 Length: {score2}</div>
+          <div className="game-board-header">
+            <div className="board-header-left">Player 2</div>
+            <div className="board-header-right">Length: {score2}</div>
           </div>
           <div className="game-hash-container">
             <div className="game-hash-label">Game Hash = {gameHash}</div>
