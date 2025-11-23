@@ -7,7 +7,7 @@ const snake = await viem.deployContract("Snake");
 
 console.log("Snake address:", snake.address);
 
-console.log("Waiting 10 seconds before verification...");
+console.log("Waiting 20 seconds before verification...");
 await new Promise(resolve => setTimeout(resolve, 20000));
 
 // const tx = await snake.write.requestRandomNumber();
