@@ -348,6 +348,15 @@
   pointer-events: none;
 }
 
+.board-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.2rem;
+  font-weight: normal;
+  text-align: center;
+}
+
 .board-header-left {
   font-size: 1.5rem;
   font-weight: bold;

@@ -436,6 +436,34 @@ function App() {
     },
   })
 
+  // Read player balances from contract
+  const { data: player1Balance, refetch: refetchPlayer1Balance } = useReadContract({
+    address: contractAddress,
+    abi: abi,
+    functionName: 'player1Balance',
+    query: {
+      enabled: !!contractAddress,
+    },
+  })
+
+  const { data: player2Balance, refetch: refetchPlayer2Balance } = useReadContract({
+    address: contractAddress,
+    abi: abi,
+    functionName: 'player2Balance',
+    query: {
+      enabled: !!contractAddress,
+    },
+  })
+
+  // Format player balances to 2 decimals (USDC has 6 decimals)
+  const player1BalanceDisplay = player1Balance 
+    ? (Number(player1Balance) / 1e6).toFixed(2)
+    : '0.00'
+  
+  const player2BalanceDisplay = player2Balance 
+    ? (Number(player2Balance) / 1e6).toFixed(2)
+    : '0.00'
+
   // Refetch on every block
   useEffect(() => {
     if (blockNumber && contractAddress) {
@@ -443,11 +471,13 @@ function App() {
       refetchWagerAmount()
       refetchPlayer1Ready()
       refetchPlayer2Ready()
+      refetchPlayer1Balance()
+      refetchPlayer2Balance()
       if (walletAddress) {
         refetchAllowance()
       }
     }
-  }, [blockNumber, contractAddress, walletAddress, refetchRandomSeed, refetchWagerAmount, refetchPlayer1Ready, refetchPlayer2Ready, refetchAllowance])
+  }, [blockNumber, contractAddress, walletAddress, refetchRandomSeed, refetchWagerAmount, refetchPlayer1Ready, refetchPlayer2Ready, refetchPlayer1Balance, refetchPlayer2Balance, refetchAllowance])
 
   // Write contract hooks
   const { writeContract, data: hash, isPending } = useWriteContract()
@@ -1496,6 +1526,9 @@ function App() {
         <div className="move-panel">
           <div className="game-board-header">
             <div className="board-header-left">Player 1</div>
+            <div className="board-header-center" style={{ fontSize: '14px', color: '#888' }}>
+              {player1BalanceDisplay} USDC
+            </div>
             <div className="board-header-right">Length: {snake1.length}</div>
           </div>
           <div className="game-hash-container">
@@ -1630,6 +1663,9 @@ function App() {
         <div className="move-panel">
           <div className="game-board-header">
             <div className="board-header-left">Player 2</div>
+            <div className="board-header-center" style={{ fontSize: '14px', color: '#888' }}>
+              {player2BalanceDisplay} USDC
+            </div>
             <div className="board-header-right">Length: {snake2.length}</div>
           </div>
           <div className="game-hash-container">
