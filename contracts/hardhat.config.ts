@@ -34,6 +34,12 @@ export default defineConfig({
       url: "https://sepolia.base.org",
       accounts: [configVariable("PRIVATE_KEY")],
     },
+    "flare-coston2": {
+      type: "http",
+      chainType: "generic",
+      url: "https://coston2-api.flare.network/ext/C/rpc",
+      accounts: [configVariable("PRIVATE_KEY")],
+    },
   },
     
 });

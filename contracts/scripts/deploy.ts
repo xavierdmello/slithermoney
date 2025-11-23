@@ -18,24 +18,10 @@ const wagerAmountWei = BigInt(Math.floor(parseFloat(chainConfig.wagerAmount) * 1
 const isFlare = chainId !== 84532;
 console.log(`Chain ID: ${chainId}, isFlare: ${isFlare}`);
 
-const usdc = await viem.deployContract("USDC", []);
-console.log("USDC address:", usdc.address);
-
-// Get deployer address
-const [deployer] = await viem.getWalletClients();
-const deployerAddress = deployer.account.address;
-console.log("Deployer address:", deployerAddress);
-
-// Mint 1000 USDC (with 6 decimals = 1000 * 10^6) to deployer
-const mintAmount = BigInt(1000 * 1e6);
-const mintTx = await usdc.write.mint([deployerAddress, mintAmount]);
-await client.waitForTransactionReceipt({ hash: mintTx });
-console.log(`Minted 1000 USDC to ${deployerAddress}`);
-
 const snake = await viem.deployContract("Snake", [
   chainConfig.entropyV2Address as `0x${string}`,
   wagerAmountWei,
-  usdc.address, // Use the newly deployed USDC address
+  chainConfig.usdcAddress as `0x${string}`,
   isFlare,
 ]);
 
@@ -58,7 +44,7 @@ await verifyContract(
     constructorArgs: [
       chainConfig.entropyV2Address as `0x${string}`,
       wagerAmountWei,
-      usdc.address,
+      chainConfig.usdcAddress as `0x${string}`,
       isFlare,
     ],
   },
