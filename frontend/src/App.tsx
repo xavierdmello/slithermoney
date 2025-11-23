@@ -52,17 +52,32 @@ const hashMoves = (moves: MoveLog[]): string => {
   return Math.abs(hash).toString(16).padStart(8, '0')
 }
 
-// Simple seeded random number generator (returns value between 0 and 1)
+// Seeded random number generator with uniform distribution
 // Uses only the seed and index - deterministic across all computers
+// Works with large bigint seeds by hashing them properly
 const seededRandom = (seed: bigint, index: number): number => {
-  // Combine seed and index as strings for consistent hashing
+  // Create a deterministic hash from seed and index
+  // This ensures uniform distribution across the board
   const seedStr = seed.toString()
-  const combined = (seedStr + '_' + index.toString()).split('').reduce((acc, char) => {
-    const hash = ((acc << 5) - acc) + char.charCodeAt(0)
-    return hash & hash // Convert to 32bit integer
-  }, 0)
-  // Use absolute value and normalize to 0-1
-  return Math.abs(combined) % 1000000 / 1000000
+  const indexStr = index.toString()
+  
+  // Combine seed and index, then hash multiple times for better distribution
+  let hash = 0
+  const combined = seedStr + '_' + indexStr
+  
+  // Hash function that provides good distribution
+  for (let i = 0; i < combined.length; i++) {
+    hash = ((hash << 5) - hash) + combined.charCodeAt(i)
+    hash = hash & hash // Convert to 32bit integer
+  }
+  
+  // Apply additional mixing for uniform distribution
+  hash = ((hash ^ (hash >>> 16)) * 0x85ebca6b) & 0x7fffffff
+  hash = ((hash ^ (hash >>> 13)) * 0xc2b2ae35) & 0x7fffffff
+  hash = (hash ^ (hash >>> 16)) & 0x7fffffff
+  
+  // Normalize to 0-1 range (using 2^31 as max for uniform distribution)
+  return Math.abs(hash) / 0x7fffffff
 }
 
 type GooglyEyesProps = {
