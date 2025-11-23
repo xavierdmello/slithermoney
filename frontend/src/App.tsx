@@ -135,6 +135,7 @@ function BalanceAnimation({ player, oldBalance, newBalance, isAnimating }: Balan
 
   const diff = parseFloat(newBalance) - parseFloat(oldBalance)
   const isIncrease = diff > 0
+  const showFinal = isComplete || !isAnimating
 
   return (
     <div className={`balance-animation-container ${player === 1 ? 'player1' : 'player2'}`}>
@@ -144,22 +145,19 @@ function BalanceAnimation({ player, oldBalance, newBalance, isAnimating }: Balan
           <span className="balance-amount">{oldBalance}</span>
           <span className="balance-currency">USDC</span>
         </div>
-        {isAnimating && hasStarted && (
-          <>
-            <div className="balance-arrow">→</div>
-            <div className={`balance-new ${isIncrease ? 'increase' : 'decrease'}`}>
-              <span className="balance-amount">{displayBalance}</span>
-              <span className="balance-currency">USDC</span>
-              {isComplete && isIncrease && diff > 0 && (
-                <span className="balance-bonus">+{diff.toFixed(2)}</span>
-              )}
-            </div>
-          </>
-        )}
-        {!isAnimating && (
-          <div className={`balance-final ${isIncrease ? 'increase' : 'decrease'}`}>
+        <div className="balance-arrow">→</div>
+        {isAnimating && hasStarted && !showFinal ? (
+          <div className={`balance-new ${isIncrease ? 'increase' : 'decrease'}`}>
+            <span className="balance-amount">{displayBalance}</span>
+            <span className="balance-currency">USDC</span>
+          </div>
+        ) : (
+          <div className={`balance-new ${isIncrease ? 'increase' : 'decrease'} ${showFinal ? 'final' : ''}`}>
             <span className="balance-amount">{newBalance}</span>
             <span className="balance-currency">USDC</span>
+            {showFinal && isIncrease && diff > 0 && (
+              <span className="balance-bonus">+{diff.toFixed(2)}</span>
+            )}
           </div>
         )}
       </div>
@@ -1999,25 +1997,32 @@ function App() {
         const finalP2Balance = player2BalanceDisplay || newBalances.p2
         const shouldAnimate = payoutStep >= 4 && isPayoutConfirmed
         
+        // Only show balance for the winning player
+        const winningPlayer = winner
+        
         return (
           <div className="payout-modal-overlay">
-            {/* Floating Balance Animations - Outside modal box */}
-            <div className="floating-balance-left">
-              <BalanceAnimation
-                player={1}
-                oldBalance={oldPlayer1Balance}
-                newBalance={finalP1Balance}
-                isAnimating={shouldAnimate}
-              />
-            </div>
-            <div className="floating-balance-right">
-              <BalanceAnimation
-                player={2}
-                oldBalance={oldPlayer2Balance}
-                newBalance={finalP2Balance}
-                isAnimating={shouldAnimate}
-              />
-            </div>
+            {/* Floating Balance Animation - Only for winning player */}
+            {winningPlayer === 1 && (
+              <div className="floating-balance-left">
+                <BalanceAnimation
+                  player={1}
+                  oldBalance={oldPlayer1Balance}
+                  newBalance={finalP1Balance}
+                  isAnimating={shouldAnimate}
+                />
+              </div>
+            )}
+            {winningPlayer === 2 && (
+              <div className="floating-balance-right">
+                <BalanceAnimation
+                  player={2}
+                  oldBalance={oldPlayer2Balance}
+                  newBalance={finalP2Balance}
+                  isAnimating={shouldAnimate}
+                />
+              </div>
+            )}
             
             <div className="payout-modal">
               <h2 style={{ marginBottom: '30px', color: '#4CAF50' }}>Consensus Verification</h2>
