@@ -28,11 +28,12 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    base: {
+    "base-sepolia": {
       type: "http",
       chainType: "generic",
       url: "https://sepolia.base.org",
       accounts: [configVariable("PRIVATE_KEY")],
     },
   },
+    
 });
