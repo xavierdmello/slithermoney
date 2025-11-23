@@ -52,20 +52,30 @@ contract Snake is IEntropyConsumer {
     }
   }
 
-  // Player 1 wager function - accepts USDC and ETH (for Pyth fee)
-  function wagerPlayer1() external payable {
-    require(!player1Ready, "Player 1 already ready");
+function wagerPlayer1() external payable {
+  require(!player1Ready, "Player 1 already ready");
+  
+  // Transfer USDC from user to contract
+  IERC20 usdc = IERC20(usdcAddress);
+  require(usdc.transferFrom(msg.sender, address(this), wagerAmount), "USDC transfer failed");
+  
+  // Set player 1 ready state
+  player1Ready = true;
+  
+  if (isFlare) {
+    // Flare: use RandomNumberV2 (no fee needed)
+    (uint256 _randomNumber, bool _isSecure, uint256 _timestamp) = randomV2.getRandomNumber();
+    number = bytes32(_randomNumber);
+    numberAsUint = uint256(_randomNumber);
+    
+    // Refund any ETH sent (should be 0, but just in case)
+    if (msg.value > 0) {
+      payable(msg.sender).transfer(msg.value);
+    }
+  } else {
+    // Pyth: require ETH fee and request random number
     uint256 fee = entropy.getFeeV2();
     require(msg.value >= fee, "Insufficient ETH for Pyth fee");
-    
-    // Transfer USDC from user to contract
-    IERC20 usdc = IERC20(usdcAddress);
-    require(usdc.transferFrom(msg.sender, address(this), wagerAmount), "USDC transfer failed");
-    
-    // Set player 1 ready state
-    player1Ready = true;
-    
-    // Request random number (payable to Pyth with ETH)
     entropy.requestV2{ value: fee }();
     
     // Refund excess ETH if any
@@ -73,21 +83,32 @@ contract Snake is IEntropyConsumer {
       payable(msg.sender).transfer(msg.value - fee);
     }
   }
+}
 
-  // Player 2 wager function - accepts USDC and ETH (for Pyth fee)
-  function wagerPlayer2() external payable {
-    require(!player2Ready, "Player 2 already ready");
+function wagerPlayer2() external payable {
+  require(!player2Ready, "Player 2 already ready");
+  
+  // Transfer USDC from user to contract
+  IERC20 usdc = IERC20(usdcAddress);
+  require(usdc.transferFrom(msg.sender, address(this), wagerAmount), "USDC transfer failed");
+  
+  // Set player 2 ready state
+  player2Ready = true;
+  
+  if (isFlare) {
+    // Flare: use RandomNumberV2 (no fee needed)
+    (uint256 _randomNumber, bool _isSecure, uint256 _timestamp) = randomV2.getRandomNumber();
+    number = bytes32(_randomNumber);
+    numberAsUint = uint256(_randomNumber);
+    
+    // Refund any ETH sent (should be 0, but just in case)
+    if (msg.value > 0) {
+      payable(msg.sender).transfer(msg.value);
+    }
+  } else {
+    // Pyth: require ETH fee and request random number
     uint256 fee = entropy.getFeeV2();
     require(msg.value >= fee, "Insufficient ETH for Pyth fee");
-    
-    // Transfer USDC from user to contract
-    IERC20 usdc = IERC20(usdcAddress);
-    require(usdc.transferFrom(msg.sender, address(this), wagerAmount), "USDC transfer failed");
-    
-    // Set player 2 ready state
-    player2Ready = true;
-    
-    // Request random number (payable to Pyth with ETH)
     entropy.requestV2{ value: fee }();
     
     // Refund excess ETH if any
@@ -95,6 +116,7 @@ contract Snake is IEntropyConsumer {
       payable(msg.sender).transfer(msg.value - fee);
     }
   }
+}
  
 
    function entropyCallback(
