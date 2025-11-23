@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import { IEntropyConsumer } from "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 import { IEntropyV2 } from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
+import {RandomNumberV2Interface} from "@flarenetwork/flare-periphery-contracts/coston2/RandomNumberV2Interface.sol";
 
 interface IERC20 {
   function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -19,22 +21,35 @@ contract Snake is IEntropyConsumer {
   uint256 public numberAsUint;
   uint256 public wagerAmount;
   address public usdcAddress;
-  
+  bool public isFlare;
   // Player balances and ready states
   uint256 public player1Balance;
   uint256 public player2Balance;
   bool public player1Ready;
   bool public player2Ready;
+
+  // Flare Random Number V2
+  RandomNumberV2Interface public randomV2;
  
-  constructor(address entropyAddress, uint256 _wagerAmount, address _usdcAddress) {
+  constructor(address entropyAddress, uint256 _wagerAmount, address _usdcAddress, bool _isFlare) {
     entropy = IEntropyV2(entropyAddress);
     wagerAmount = _wagerAmount;
     usdcAddress = _usdcAddress;
+    randomV2 = ContractRegistry.getRandomNumberV2();
+    isFlare = _isFlare;
   }
 
   function requestRandomNumber() external payable {
+    if (isFlare) {
+              (uint256 _randomNumber, bool _isSecure, uint256 _timestamp) = randomV2
+            .getRandomNumber();
+
+            number = bytes32(_randomNumber);
+            numberAsUint = uint256(_randomNumber);
+    } else {
     uint256 fee = entropy.getFeeV2();
     uint64 sequenceNumber = entropy.requestV2{ value: fee }();
+    }
   }
 
   // Player 1 wager function - accepts USDC and ETH (for Pyth fee)

@@ -4,9 +4,4 @@ export const config = {
     usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     wagerAmount: "0.01", // 1 cent
   },
-  8453: { // base mainnet
-    entropyV2Address: "0x0000000000000000000000000000000000000000", // TODO: update with actual address
-    usdcAddress: "0x0000000000000000000000000000000000000000", // TODO: update with actual address
-    wagerAmount: "0.01",
-  },
 };
