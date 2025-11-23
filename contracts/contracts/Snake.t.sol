@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Counter} from "./Counter.sol";
+import {Snake} from "./Snake.sol";
 import {Test} from "forge-std/Test.sol";
 
-contract CounterTest is Test {
-  Counter counter;
+contract SnakeTest is Test {
+  Snake snake;
 
   function setUp() public {
-    counter = new Counter();
+    snake = new Snake();
   }
 
   function test_InitialValue() public view {
-    require(counter.x() == 0, "Initial value should be 0");
+    require(snake.x() == 0, "Initial value should be 0");
   }
 
   function testFuzz_Inc(uint8 x) public {
     for (uint8 i = 0; i < x; i++) {
-      counter.inc();
+      snake.inc();
     }
-    require(counter.x() == x, "Value after calling inc x times should be x");
+    require(snake.x() == x, "Value after calling inc x times should be x");
   }
 
   function test_IncByZero() public {
     vm.expectRevert();
-    counter.incBy(0);
+    snake.incBy(0);
   }
 }
