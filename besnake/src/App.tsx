@@ -651,12 +651,12 @@ function App() {
     }
     
     setMoveLog(prev => {
-      const newLog = [...prev, [currentTick, p1Move, p2Move]]
+      const newLog = [...prev, [currentTick, p1Move, p2Move] as MoveLog]
       // Also update original move log if this is a new move (not a replay)
       setOriginalMoveLog(prevOriginal => {
         // Only add if this tick doesn't exist in original (i.e., it's a new move, not a replay)
         if (!prevOriginal.find(([t]) => t === currentTick)) {
-          return [...prevOriginal, [currentTick, p1Move, p2Move]]
+          return [...prevOriginal, [currentTick, p1Move, p2Move] as MoveLog]
         }
         return prevOriginal
       })
@@ -835,9 +835,9 @@ function App() {
         if (t === tick) {
           const newP1 = player === 1 ? move : p1
           const newP2 = player === 2 ? move : p2
-          return [t, newP1, newP2]
+          return [t, newP1, newP2] as MoveLog
         }
-        return [t, p1, p2]
+        return [t, p1, p2] as MoveLog
       })
       
       // Just update the move log, don't replay the game
