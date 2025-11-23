@@ -441,23 +441,23 @@ function App() {
     ? (rawAddress as `0x${string}`)
     : undefined
   
-  // Read entropy address from Snake contract
+  // Read entropy address from Snake contract (only for chainId 84532)
   const { data: entropyAddress } = useReadContract({
     address: contractAddress,
     abi: abi,
     functionName: 'entropy',
     query: {
-      enabled: !!contractAddress,
+      enabled: !!contractAddress && chainId === 84532,
     },
   })
 
-  // Read feeV2 from entropy contract
+  // Read feeV2 from entropy contract (only for chainId 84532)
   const { data: feeV2 } = useReadContract({
     address: entropyAddress as `0x${string}` | undefined,
     abi: entropyAbi,
     functionName: 'getFeeV2',
     query: {
-      enabled: !!entropyAddress,
+      enabled: !!entropyAddress && chainId === 84532,
     },
   })
 
@@ -1425,26 +1425,30 @@ function App() {
   }
 
   const handleWagerPlayer1 = () => {
-    if (!contractAddress || !feeV2) return
+    if (!contractAddress) return
+    // Only require feeV2 for chainId 84532
+    if (chainId === 84532 && !feeV2) return
     // @ts-expect-error - wagmi types are strict but this works at runtime
     writeContractWager({
       address: contractAddress,
       abi: abi as any,
       functionName: 'wagerPlayer1',
       args: [],
-      value: feeV2,
+      value: chainId === 84532 ? feeV2 : 0n,
     })
   }
 
   const handleWagerPlayer2 = () => {
-    if (!contractAddress || !feeV2) return
+    if (!contractAddress) return
+    // Only require feeV2 for chainId 84532
+    if (chainId === 84532 && !feeV2) return
     // @ts-expect-error - wagmi types are strict but this works at runtime
     writeContractWager({
       address: contractAddress,
       abi: abi as any,
       functionName: 'wagerPlayer2',
       args: [],
-      value: feeV2,
+      value: chainId === 84532 ? feeV2 : 0n,
     })
   }
 
