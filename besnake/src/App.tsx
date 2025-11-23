@@ -560,6 +560,42 @@ function App() {
       newSnake2.pop()
     }
 
+    // Check win condition: first to length 10 wins
+    if (newSnake1.length >= 10 && newSnake2.length >= 10) {
+      // Both reached 10 at the same time - player 1 wins (first check)
+      return {
+        snake1: newSnake1,
+        snake2: newSnake2,
+        direction1: dir1,
+        direction2: dir2,
+        food: newFood,
+        gameOver: true,
+        winner: 1
+      }
+    } else if (newSnake1.length >= 10) {
+      // Player 1 wins
+      return {
+        snake1: newSnake1,
+        snake2: newSnake2,
+        direction1: dir1,
+        direction2: dir2,
+        food: newFood,
+        gameOver: true,
+        winner: 1
+      }
+    } else if (newSnake2.length >= 10) {
+      // Player 2 wins
+      return {
+        snake1: newSnake1,
+        snake2: newSnake2,
+        direction1: dir1,
+        direction2: dir2,
+        food: newFood,
+        gameOver: true,
+        winner: 2
+      }
+    }
+
     return {
       snake1: newSnake1,
       snake2: newSnake2,
@@ -850,6 +886,7 @@ function App() {
 
         {/* Center: Game Board */}
         <div className="game-center">
+          <div className="game-board-title">First to 10 Wins</div>
           <div className={`game-board-wrapper ${showGameOverScreen ? 'game-over-blur' : ''}`}>
             <div className="game-board">
               {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
