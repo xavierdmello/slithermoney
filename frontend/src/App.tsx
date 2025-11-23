@@ -1606,7 +1606,7 @@ function App() {
       <div className="game-container">
         <header className="app-header">
           <div className="app-header-logo">
-            SnakeWithMoney
+            SlitherMoney
           </div>
           <div style={{ 
             display: 'flex', 
@@ -1736,7 +1736,7 @@ function App() {
     <div className="game-container">
       <header className="app-header">
         <div className="app-header-logo">
-          SnakeWithMoney
+          SlitherMoney
         </div>
         <div style={{ 
           display: 'flex', 
