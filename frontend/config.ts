@@ -1,8 +1,8 @@
-export const wagmiConfig = {
+export const config = {
 8453: {
 "address": "0x0000000000000000000000000000000000000000",
 },
 84532: {
-"address": "0x183bfb6423c29a69c938e5d8276e3b5cf52e724e",
+"address": "0x74cb4bdf08db5a6e6fc7bc05b194c370f556d3f4",
 }
 }
