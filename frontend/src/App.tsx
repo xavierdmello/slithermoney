@@ -410,16 +410,6 @@ function App() {
     }
   }, [isConfirmed, refetchRandomSeed])
 
-  const handleGenerateRandom = () => {
-    if (!contractAddress || feeV2 === undefined) return
-    writeContract({
-      address: contractAddress,
-      abi: abi,
-      functionName: 'requestRandomNumber',
-      value: BigInt(feeV2.toString()),
-    } as any)
-  }
-
   const [snake1, setSnake1] = useState<Position[]>(INITIAL_SNAKE_1)
   const [snake2, setSnake2] = useState<Position[]>(INITIAL_SNAKE_2)
   const [direction1, setDirection1] = useState<Position>(INITIAL_DIRECTION_1)
@@ -427,6 +417,107 @@ function App() {
   const [food, setFood] = useState<Position>({ x: 10, y: 10 })
   const [foodCounter, setFoodCounter] = useState(0)
   const [gameOver, setGameOver] = useState(false)
+  const [editedSeed, setEditedSeed] = useState<string>('')
+  const [isEditingSeed, setIsEditingSeed] = useState(false)
+  const seedTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const cursorPositionRef = useRef<number | null>(null)
+
+  // Get the active seed (edited if available, otherwise on-chain)
+  const activeSeed = editedSeed !== '' ? editedSeed : (randomSeed?.toString() || '')
+  
+  // Check if seed is edited (different from on-chain)
+  const isSeedEdited = randomSeed !== undefined && editedSeed !== '' && editedSeed !== randomSeed.toString()
+  
+  // Format seed to split every 30 characters for display
+  const formatSeedForDisplay = (seed: string): string => {
+    if (!seed) return ''
+    // Remove any existing newlines first
+    const cleanSeed = seed.replace(/\n/g, '')
+    // Split into chunks of 30 characters
+    return cleanSeed.match(/.{1,30}/g)?.join('\n') || cleanSeed
+  }
+  
+  // Get display seed (formatted with newlines every 30 chars)
+  const displaySeed = formatSeedForDisplay(activeSeed)
+  
+  // Validate if seed is a valid BigInt
+  const isValidSeed = (seed: string): boolean => {
+    if (!seed || seed.trim() === '') return true // Empty seed is valid (uses on-chain)
+    try {
+      BigInt(seed.trim())
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+  
+  // Check if current seed is invalid
+  const isSeedInvalid = editedSeed !== '' && !isValidSeed(editedSeed)
+  
+  // Restore cursor position after displaySeed updates
+  useEffect(() => {
+    if (cursorPositionRef.current !== null && seedTextareaRef.current) {
+      const targetPos = Math.min(cursorPositionRef.current, displaySeed.length)
+      seedTextareaRef.current.setSelectionRange(targetPos, targetPos)
+      cursorPositionRef.current = null
+    }
+  }, [displaySeed])
+  
+  const handleSeedEdit = () => {
+    // Initialize editedSeed with current active seed if not already set
+    if (editedSeed === '') {
+      setEditedSeed(activeSeed.replace(/\n/g, ''))
+    }
+    setIsEditingSeed(true)
+    // Focus the textarea when edit is clicked
+    setTimeout(() => {
+      if (seedTextareaRef.current) {
+        seedTextareaRef.current.focus()
+      }
+    }, 0)
+  }
+  
+  const handleSeedSave = () => {
+    // Remove newlines when storing
+    const cleanSeed = editedSeed.replace(/\n/g, '').trim()
+    setEditedSeed(cleanSeed)
+    // Don't exit edit mode on blur - only revert does that
+    // Don't auto-revert invalid seeds - let user see the error
+  }
+  
+  const handleSeedRevert = () => {
+    setEditedSeed('')
+    setIsEditingSeed(false)
+  }
+  
+  const handleSeedChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target
+    const cursorPosition = textarea.selectionStart
+    const currentValue = textarea.value
+    
+    // Remove newlines when storing (user can type freely, we format on display)
+    const cleanValue = currentValue.replace(/\n/g, '')
+    
+    // Calculate cursor position in clean value (without newlines)
+    // Count newlines before cursor in current formatted value
+    const newlinesBeforeCursor = (currentValue.substring(0, cursorPosition).match(/\n/g) || []).length
+    // The cursor position in the clean value (without newlines)
+    const cleanCursorPos = cursorPosition - newlinesBeforeCursor
+    
+    // After formatting, calculate where cursor should be
+    // Newlines are inserted every 30 characters, so:
+    // cleanPos 0-29 → formattedPos 0-29 (no newline)
+    // cleanPos 30 → formattedPos 31 (newline at 30)
+    // cleanPos 31-59 → formattedPos 32-60 (one newline before)
+    // Formula: formattedPos = cleanPos + floor(cleanPos / 30)
+    const newCursorPosition = cleanCursorPos + Math.floor(cleanCursorPos / 30)
+    
+    // Store cursor position to restore after React updates
+    cursorPositionRef.current = newCursorPosition
+    
+    setEditedSeed(cleanValue)
+  }
+
   const [winner, setWinner] = useState<1 | 2 | null>(null)
   // Scores are derived from snake lengths - no separate state needed
   const [tick, setTick] = useState(0)
@@ -448,6 +539,7 @@ function App() {
   const gameOverRef = useRef(gameOver)
   const tickRef = useRef(tick)
   const randomSeedRef = useRef<bigint | undefined>(randomSeed as bigint | undefined)
+  const editedSeedRef = useRef<string>('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const boomAudioRef = useRef<HTMLAudioElement | null>(null)
   const munchAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -461,7 +553,8 @@ function App() {
     gameOverRef.current = gameOver
     tickRef.current = tick
     randomSeedRef.current = randomSeed as bigint | undefined
-  }, [snake1, snake2, direction1, direction2, food, gameOver, tick, randomSeed])
+    editedSeedRef.current = editedSeed
+  }, [snake1, snake2, direction1, direction2, food, gameOver, tick, randomSeed, editedSeed])
 
   // Initialize audio
   useEffect(() => {
@@ -752,6 +845,16 @@ function App() {
 
   const moveSnakes = useCallback(() => {
     if (gameOverRef.current) return
+    
+    // Prevent game from running if seed is invalid
+    const cleanSeed = editedSeedRef.current.replace(/\n/g, '').trim()
+    if (cleanSeed !== '') {
+      try {
+        BigInt(cleanSeed)
+      } catch (e) {
+        return // Invalid seed, stop game
+      }
+    }
 
     const dir1 = direction1Ref.current
     const dir2 = direction2Ref.current
@@ -778,7 +881,17 @@ function App() {
       gameOver: false,
       winner: null
     }
-    const newState = applyMove(currentState, p1Move, p2Move, currentTick, randomSeedRef.current)
+    // Use edited seed if available, otherwise use on-chain seed
+    let seedToUse: bigint | undefined = randomSeedRef.current
+    if (editedSeedRef.current !== '') {
+      try {
+        seedToUse = BigInt(editedSeedRef.current)
+      } catch (e) {
+        // Invalid seed, fall back to on-chain seed
+        seedToUse = randomSeedRef.current
+      }
+    }
+    const newState = applyMove(currentState, p1Move, p2Move, currentTick, seedToUse)
     
     // Check if food was eaten (snake length increased or food position changed)
     const p1LengthIncreased = newState.snake1.length > currentState.snake1.length
@@ -844,13 +957,36 @@ function App() {
 
   useEffect(() => {
     if (gameOver || !gameStarted) return
+    // Prevent game from running if seed is invalid
+    const cleanSeed = editedSeed.replace(/\n/g, '').trim()
+    let seedInvalid = false
+    if (cleanSeed !== '') {
+      try {
+        BigInt(cleanSeed)
+      } catch (e) {
+        seedInvalid = true
+      }
+    }
+    if (seedInvalid) return
 
     const gameInterval = setInterval(moveSnakes, GAME_SPEED)
     return () => clearInterval(gameInterval)
-  }, [moveSnakes, gameOver, gameStarted])
+  }, [moveSnakes, gameOver, gameStarted, editedSeed])
 
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
     if (gameOver) return
+    
+    // Check if seed is invalid using ref to avoid dependency issues
+    const cleanSeed = editedSeedRef.current.replace(/\n/g, '').trim()
+    let seedInvalid = false
+    if (cleanSeed !== '') {
+      try {
+        BigInt(cleanSeed)
+      } catch (e) {
+        seedInvalid = true
+      }
+    }
+    if (seedInvalid) return // Prevent game from starting with invalid seed
 
     let moved = false
 
@@ -1005,6 +1141,85 @@ function App() {
         <div className="app-header-logo">
           SnakeWithMoney
         </div>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          flex: 1,
+          gap: '8px'
+        }}>
+          <div style={{ fontFamily: 'monospace', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>pyth seed:</span>
+            <textarea
+              ref={seedTextareaRef}
+              value={displaySeed}
+              onChange={handleSeedChange}
+              onBlur={handleSeedSave}
+              readOnly={!isEditingSeed}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleSeedRevert()
+              }}
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                padding: '0',
+                border: 'none',
+                borderBottom: '1px solid #666',
+                borderRadius: '0',
+                width: '240px', // Shorter width for better display
+                height: `${Math.ceil((activeSeed.replace(/\n/g, '').length || 1) / 30) * 14.4}px`, // 14.4px per line (12px font * 1.2 line-height)
+                backgroundColor: 'transparent',
+                color: isSeedEdited ? '#ff4444' : '#888',
+                outline: 'none',
+                caretColor: '#666',
+                resize: 'none',
+                overflow: 'hidden',
+                whiteSpace: 'pre',
+                lineHeight: '1.2',
+                overflowWrap: 'normal',
+                wordBreak: 'normal',
+                verticalAlign: 'top',
+                cursor: isEditingSeed ? 'text' : 'default'
+              }}
+              wrap="off"
+            />
+          </div>
+          {!isEditingSeed ? (
+            <button
+              onClick={handleSeedEdit}
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '11px',
+                padding: '4px 8px',
+                border: '1px solid #666',
+                borderRadius: '4px',
+                backgroundColor: 'transparent',
+                color: '#666',
+                cursor: 'pointer',
+                minWidth: '60px'
+              }}
+            >
+              edit
+            </button>
+          ) : (
+            <button
+              onClick={handleSeedRevert}
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '11px',
+                padding: '4px 8px',
+                border: '1px solid #ff4444',
+                borderRadius: '4px',
+                backgroundColor: 'transparent',
+                color: '#ff4444',
+                cursor: 'pointer',
+                minWidth: '60px'
+              }}
+            >
+              revert
+            </button>
+          )}
+        </div>
         <div>
           <ConnectButton />
         </div>
@@ -1040,7 +1255,7 @@ function App() {
         {/* Center: Game Board */}
         <div className="game-center">
           <div className="game-board-title">First to 10 Wins</div>
-          <div className={`game-board-wrapper ${showGameOverScreen ? 'game-over-blur' : ''}`}>
+          <div className={`game-board-wrapper ${showGameOverScreen || (!gameOver && isSeedInvalid) ? 'game-over-blur' : ''}`}>
             <div className="game-board">
               {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
                 const x = index % GRID_SIZE
@@ -1135,19 +1350,15 @@ function App() {
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="random-seed-section">
-            <div className="random-seed-header">
-              <h3>Random Seed: {randomSeed !== undefined ? randomSeed.toString() : 'Loading...'}</h3>
-              <button 
-                onClick={handleGenerateRandom}
-                disabled={!contractAddress || feeV2 === undefined || isPending || isConfirming}
-                className="generate-random-btn"
-              >
-                {isPending || isConfirming ? 'Generating...' : 'Generate New Random Number'}
-              </button>
-            </div>
+            {!gameOver && isSeedInvalid && (
+              <div className="game-over-overlay-board">
+                <div className="game-over-content">
+                  <h2>Invalid Seed</h2>
+                  <p style={{ margin: '10px 0 20px 0', color: '#888' }}>The seed must be a valid number</p>
+                  <button onClick={handleSeedRevert}>Revert</button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="instructions">
